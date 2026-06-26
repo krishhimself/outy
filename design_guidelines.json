@@ -1,0 +1,164 @@
+{
+  "theme": {
+    "archetype": "3 (Pastel & Soft)",
+    "mode": "Light",
+    "description": "Fun, vibrant, and clean social trip planner for Gen Z/Millennials. Optimistic pastel accents with crisp, high-contrast dark text for readability. Soft tactile cards with generous mobile-first spacing."
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Outfit",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "scale": {
+      "h1": "text-4xl font-bold tracking-tight text-slate-900",
+      "h2": "text-2xl font-bold tracking-tight text-slate-900",
+      "h3": "text-xl font-semibold text-slate-800",
+      "body": "text-base text-slate-600 leading-relaxed",
+      "small": "text-sm text-slate-500",
+      "overline": "text-xs font-bold uppercase tracking-widest text-slate-400"
+    }
+  },
+  "colors": {
+    "background": "bg-[#FAFAFA]",
+    "surface": "bg-white",
+    "primary": "bg-[#FF6B6B]",
+    "primary_text": "text-white",
+    "text_main": "text-[#1C1E21]",
+    "text_muted": "text-[#6B7280]",
+    "pastels": {
+      "mint": "bg-[#D1FAE5] text-[#065F46]",
+      "lilac": "bg-[#E0E7FF] text-[#3730A3]",
+      "butter": "bg-[#FEF08A] text-[#854D0E]",
+      "peach": "bg-[#FFEDD5] text-[#9A3412]"
+    },
+    "borders": "border-[#E5E7EB]",
+    "nav_glass": "bg-white/80 backdrop-blur-xl border-t border-black/5"
+  },
+  "spacing_and_layout": {
+    "app_container": "max-w-md mx-auto h-screen bg-[#FAFAFA] relative overflow-hidden flex flex-col sm:border sm:border-slate-200 sm:shadow-2xl sm:rounded-[3rem]",
+    "main_scroll": "flex-1 overflow-y-auto pb-24 hide-scrollbar",
+    "section_padding": "p-6",
+    "card_gap": "gap-4",
+    "radius": {
+      "card": "rounded-3xl",
+      "button": "rounded-full",
+      "pill": "rounded-full"
+    }
+  },
+  "components": {
+    "bottom_nav": {
+      "classes": "absolute bottom-0 w-full h-20 flex justify-around items-center px-6 pb-4 pt-2 z-50 bg-white/80 backdrop-blur-xl border-t border-black/5",
+      "active_icon": "text-[#FF6B6B] scale-110 transition-transform flex flex-col items-center gap-1",
+      "inactive_icon": "text-slate-400 hover:text-slate-600 transition-colors flex flex-col items-center gap-1"
+    },
+    "trip_card": {
+      "wrapper": "w-full bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col gap-3 active:scale-[0.98] transition-transform",
+      "image_container": "w-full h-40 rounded-2xl overflow-hidden relative bg-slate-100",
+      "image": "w-full h-full object-cover",
+      "content": "flex flex-col gap-1",
+      "date_pill": "absolute top-3 left-3 px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-xs font-bold text-slate-800 shadow-sm",
+      "avatar_group": "flex -space-x-2 mt-2"
+    },
+    "button_primary": {
+      "classes": "w-full py-4 bg-[#FF6B6B] hover:bg-[#fa5a5a] text-white font-bold rounded-full text-lg shadow-lg shadow-[#FF6B6B]/20 active:scale-[0.98] transition-all flex justify-center items-center gap-2"
+    },
+    "input_field": {
+      "wrapper": "flex flex-col gap-2",
+      "label": "text-sm font-bold text-slate-700 ml-1",
+      "input": "w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl text-base focus:ring-2 focus:ring-[#FF6B6B]/20 focus:border-[#FF6B6B] outline-none transition-all placeholder:text-slate-400"
+    }
+  },
+  "screens": {
+    "home": {
+      "description": "Upcoming outings feed. Large cards representing trips.",
+      "layout": "Header with 'Hi, [User]' and Avatar. 'Upcoming Outings' list of trip_cards. Floating Action Button or nav item for 'Create'."
+    },
+    "create_outing": {
+      "description": "Multi-step or single long-scroll form.",
+      "layout": "Input fields for Name, Destination. Date Picker (Shadcn Calendar). Cover Photo upload placeholder. 'Next: Invite Friends' button."
+    },
+    "outing_detail": {
+      "description": "Hub for a specific trip.",
+      "layout": "Hero image top with gradient overlay -> Title & Dates. Horizontal scroll tabs (Overview, Gallery, To-Do, Expenses). Members grid. Sticky bottom CTA 'Join' or 'Edit'."
+    },
+    "memory_capsule": {
+      "description": "Scrapbook style feed of past trips.",
+      "layout": "Masonry or timeline view. Grayscale/sepia placeholders or polaroid-style white borders on cards rotated slightly."
+    },
+    "expense_tracker": {
+      "description": "Simple ledger.",
+      "layout": "Total spent big number. List of transactions with category icons. 'Add Expense' FAB."
+    },
+    "profile": {
+      "description": "User profile and settings.",
+      "layout": "Centered avatar, username. Invite code section (tap to copy). List of joined outings."
+    }
+  },
+  "media": {
+    "icons_library": "@phosphor-icons/react",
+    "installation": "yarn add @phosphor-icons/react",
+    "images": {
+      "covers": [
+        {
+          "url": "https://images.unsplash.com/photo-1770820768029-7f3b4cb51bf3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHw0fHxmcmllbmRzJTIwcm9hZHRyaXAlMjBtb3VudGFpbiUyMHN1bnNldHxlbnwwfHx8fDE3ODA3NzA3MjJ8MA&ixlib=rb-4.1.0&q=85",
+          "category": "trip_cover",
+          "description": "Sunset hilltop with friends"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1614717668397-5252f17ee5b5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHw0fHxmcmllbmRzJTIwYmVhY2glMjB2YWNhdGlvbiUyMGZ1bnxlbnwwfHx8fDE3ODA3NzA3MjJ8MA&ixlib=rb-4.1.0&q=85",
+          "category": "trip_cover",
+          "description": "Beach run"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1542272008-aefc4f04761a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwxfHxmcmllbmRzJTIwcm9hZHRyaXAlMjBtb3VudGFpbiUyMHN1bnNldHxlbnwwfHx8fDE3ODA3NzA3MjJ8MA&ixlib=rb-4.1.0&q=85",
+          "category": "trip_cover",
+          "description": "Mountain hikers"
+        }
+      ],
+      "avatars": [
+        {
+          "url": "https://images.unsplash.com/photo-1662850886700-4ec19bd30d11?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHw0fHx5b3VuZyUyMHBlcnNvbiUyMHNtaWxpbmclMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODA3NzA3MjJ8MA&ixlib=rb-4.1.0&q=85",
+          "category": "user_avatar",
+          "description": "User 1"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwyfHx5b3VuZyUyMHBlcnNvbiUyMHNtaWxpbmclMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODA3NzA3MjJ8MA&ixlib=rb-4.1.0&q=85",
+          "category": "user_avatar",
+          "description": "User 2"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1604004215402-e0be233f39be?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHx5b3VuZyUyMHBlcnNvbiUyMHNtaWxpbmclMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODA3NzA3MjJ8MA&ixlib=rb-4.1.0&q=85",
+          "category": "user_avatar",
+          "description": "User 3"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1615109398623-88346a601842?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwzfHx5b3VuZyUyMHBlcnNvbiUyMHNtaWxpbmclMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODA3NzA3MjJ8MA&ixlib=rb-4.1.0&q=85",
+          "category": "user_avatar",
+          "description": "User 4"
+        }
+      ]
+    }
+  },
+  "testing": {
+    "attributes": [
+      "data-testid=\"nav-home\"",
+      "data-testid=\"nav-memory\"",
+      "data-testid=\"nav-create\"",
+      "data-testid=\"nav-expenses\"",
+      "data-testid=\"nav-profile\"",
+      "data-testid=\"create-outing-button\"",
+      "data-testid=\"outing-card-[id]\"",
+      "data-testid=\"invite-friends-button\""
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build this as a mobile-first responsive web app. Constrain the main container to max-w-md and center it on larger screens (like a mobile emulator view).",
+    "Always use the provided image URLs for trip covers and user avatars. Do not use generic placeholders.",
+    "Use @phosphor-icons/react for the bottom tab bar and UI icons. They fit the fun, clean aesthetic perfectly.",
+    "Implement fluid, bouncy interactions. Wrap cards and buttons in framer-motion <motion.div whileTap={{ scale: 0.98 }} />.",
+    "For the bottom nav, use a fixed position at the bottom of the max-w-md container, with glassmorphism (backdrop-blur).",
+    "Keep spacing generous (p-6, gap-4) and corner radii large (rounded-3xl for cards, rounded-full for buttons) to achieve the 2026 pastel app look.",
+    "Add 'data-testid' to all interactive elements as per the testing rules."
+  ]
+}
