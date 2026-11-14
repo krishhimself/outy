@@ -208,7 +208,7 @@ export default function ExpensesScreen() {
 
             <Text style={styles.subSectionTitle}>Who pays whom</Text>
             {transactions.length === 0 ? (
-              <View style={styles.emptyMini}><Text style={styles.emptyMiniText}>Everyone is settled up! 🎉</Text></View>
+              <View style={styles.emptyMini}><Text style={styles.emptyMiniText}>Everyone is settled up</Text></View>
             ) : (
               transactions.map((t, idx) => (
                 <View key={idx} style={styles.txRow}>

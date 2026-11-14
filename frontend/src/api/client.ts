@@ -154,17 +154,11 @@ export const api = {
   me: () => request<{ user: User }>("/auth/me"),
   updateMe: (body: { name?: string; avatar_url?: string | null }) =>
     request<{ user: User }>("/auth/me", { method: "PUT", body: JSON.stringify(body) }),
+  logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
   forgotPassword: (email: string) =>
-  request<{ ok: boolean }>("/auth/forgot-password", {
-    method: "POST",
-    body: JSON.stringify({ email }),
-  }),
-
-resetPassword: (email: string, otp: string, new_password: string) =>
-  request<{ ok: boolean }>("/auth/reset-password", {
-    method: "POST",
-    body: JSON.stringify({ email, otp, new_password }),
-  }),
+    request<{ ok: boolean }>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
+  resetPassword: (email: string, otp: string, new_password: string) =>
+    request<{ ok: boolean }>("/auth/reset-password", { method: "POST", body: JSON.stringify({ email, otp, new_password }) }),
 
   // Outings
   listOutings: (scope: "upcoming" | "past" | "all" = "all") => request<Outing[]>(`/outings?scope=${scope}`),
@@ -188,6 +182,7 @@ resetPassword: (email: string, otp: string, new_password: string) =>
   listExpenses: (outingId: string) => request<Expense[]>(`/outings/${outingId}/expenses`),
   addExpense: (outingId: string, body: { title: string; amount: number; category: string; paid_by: string; paid_by_name: string; split_type: "equal" | "custom"; shares: ExpenseShare[] }) =>
     request<Expense>(`/outings/${outingId}/expenses`, { method: "POST", body: JSON.stringify(body) }),
+  deleteExpense: (id: string) => request<{ ok: boolean }>(`/expenses/${id}`, { method: "DELETE" }),
   outingSettlements: (outingId: string) =>
     request<{ balances: Balance[]; transactions: SettlementTx[] }>(`/outings/${outingId}/settlements`),
   expensesSummary: () => request<{ total: number; by_outing: { outing_id: string; outing_name: string; total: number }[]; recent: (Expense & { outing_name: string })[] }>("/expenses/summary"),

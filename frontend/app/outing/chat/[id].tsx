@@ -111,7 +111,7 @@ export default function ChatScreen() {
             contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.lg, gap: 8 }}
             ListEmptyComponent={
               <View style={styles.empty} testID="chat-empty">
-                <Text style={styles.emptyTitle}>Say hi to the crew 👋</Text>
+                <Text style={styles.emptyTitle}>Say hi to the crew</Text>
                 <Text style={styles.emptySub}>Plan, joke, share. Notifications about new photos & tasks land here too.</Text>
               </View>
             }

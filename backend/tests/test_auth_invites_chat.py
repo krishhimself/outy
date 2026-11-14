@@ -16,7 +16,7 @@ import pytest
 import requests
 
 
-BASE_URL = os.environ.get("EXPO_BACKEND_URL", "https://outy-trips.preview.emergentagent.com").rstrip("/") + "/api"
+BASE_URL = os.environ.get("OUTY_API_URL", "http://localhost:8000").rstrip("/") + "/api"
 
 
 def _u(prefix: str) -> str:

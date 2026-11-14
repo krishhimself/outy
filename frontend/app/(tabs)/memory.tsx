@@ -117,7 +117,7 @@ export default function MemoryTab() {
                 </View>
               )}
             </View>
-            <Text style={styles.subtitle}>Every outy you've lived ✨</Text>
+            <Text style={styles.subtitle}>Every outy you've lived</Text>
           </View>
         }
         renderItem={renderMemory}
@@ -130,7 +130,7 @@ export default function MemoryTab() {
           ) : (
             <View style={styles.empty} testID="memory-empty-state">
               <View style={styles.emptyBadge}>
-                <Text style={styles.emptyEmoji}>✈️</Text>
+                <Ionicons name="airplane" size={34} color={colors.primary} />
               </View>
               <Text style={styles.emptyTitle}>No memories yet</Text>
               <Text style={styles.emptySub}>
@@ -231,7 +231,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.md,
   },
-  emptyEmoji: { fontSize: 36 },
   emptyTitle: { fontSize: 20, fontWeight: "800", color: colors.textMain, marginBottom: spacing.xs },
   emptySub: { fontSize: 14, color: colors.textMuted, textAlign: "center", lineHeight: 22 },
 });

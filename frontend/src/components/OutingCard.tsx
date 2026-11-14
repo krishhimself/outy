@@ -45,11 +45,11 @@ export default function OutingCard({ outing, onPress, variant = "upcoming", inde
   const d = daysUntil(outing.start_date);
   let countdown = "";
   if (variant === "past") {
-    countdown = "✨ Memory";
+    countdown = "Memory";
   } else if (d < 0) {
-    countdown = "🔥 Ongoing";
+    countdown = "Ongoing";
   } else if (d === 0) {
-    countdown = "🎉 Today";
+    countdown = "Today";
   } else if (d === 1) {
     countdown = "⏰ Tomorrow";
   } else {
