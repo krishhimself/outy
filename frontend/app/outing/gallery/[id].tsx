@@ -14,13 +14,16 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { ZoomableView } from "react-native-zoom-toolkit";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { ResumableZoom } from "react-native-zoom-toolkit";
 
 import { api, GalleryItem } from "@/src/api/client";
 import { useAuth } from "@/src/state/auth";
+import { confirmAction } from "@/src/utils/confirm";
 import { colors, radii, spacing } from "@/src/theme";
 
-const SCREEN_W = Math.min(Dimensions.get("window").width, 430);
+const WINDOW = Dimensions.get("window");
+const SCREEN_W = Math.min(WINDOW.width, 430);
 const GRID_GAP = 6;
 const COLUMNS = 3;
 const TILE_SIZE = Math.floor((SCREEN_W - spacing.lg * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
@@ -74,19 +77,25 @@ export default function GalleryScreen() {
     try {
       const created = await api.addGalleryItem(id, {
         image_b64: dataUri,
-        uploaded_by: profile.id,
-        uploaded_by_name: profile.name,
       });
       setItems((prev) => [created, ...prev]);
+    } catch (e: any) {
+      setPermError(e?.message ?? "Could not upload that photo. Please try again.");
     } finally {
       setUploading(false);
     }
   };
 
   const removeItem = async (item: GalleryItem) => {
+    const ok = await confirmAction("Delete this photo?", "It will be removed for the whole crew.");
+    if (!ok) return;
     setViewer(null);
-    await api.deleteGalleryItem(item.id);
-    setItems((prev) => prev.filter((x) => x.id !== item.id));
+    try {
+      await api.deleteGalleryItem(item.id);
+      setItems((prev) => prev.filter((x) => x.id !== item.id));
+    } catch (e: any) {
+      setPermError(e?.message ?? "Could not delete that photo.");
+    }
   };
 
   return (
@@ -170,13 +179,15 @@ export default function GalleryScreen() {
             </View>
 
             {viewer ? (
-              <ZoomableView style={styles.viewerContent}>
-                <Image
-                  source={{ uri: viewer.image_b64 }}
-                  style={styles.viewerImg}
-                  resizeMode="contain"
-                />
-              </ZoomableView>
+              <GestureHandlerRootView style={styles.viewerContent}>
+                <ResumableZoom maxScale={4}>
+                  <Image
+                    source={{ uri: viewer.image_b64 }}
+                    style={styles.viewerImg}
+                    resizeMode="contain"
+                  />
+                </ResumableZoom>
+              </GestureHandlerRootView>
             ) : null}
           </SafeAreaView>
         </View>
@@ -233,5 +244,5 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.sm,
   },
   viewerContent: { flex: 1, alignItems: "center", justifyContent: "center" },
-  viewerImg: { width: "100%", flex: 1 },
+  viewerImg: { width: WINDOW.width, height: WINDOW.height * 0.75 },
 });

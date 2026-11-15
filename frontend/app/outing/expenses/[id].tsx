@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api, Balance, Expense, Outing, SettlementTx } from "@/src/api/client";
 import { useAuth } from "@/src/state/auth";
+import { confirmAction, notify } from "@/src/utils/confirm";
 import { colors, radii, spacing } from "@/src/theme";
 
 const CATEGORIES: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; bg: string }[] = [
@@ -149,7 +150,13 @@ export default function ExpensesScreen() {
   };
 
   const deleteExpense = async (expenseId: string) => {
-    await api.deleteExpense(expenseId);
+    const ok = await confirmAction("Delete this expense?", "Everyone's balances will be recalculated.");
+    if (!ok) return;
+    try {
+      await api.deleteExpense(expenseId);
+    } catch (e: any) {
+      notify("Could not delete", e?.message ?? "Please try again.");
+    }
     fetchAll();
   };
 
@@ -208,7 +215,7 @@ export default function ExpensesScreen() {
 
             <Text style={styles.subSectionTitle}>Who pays whom</Text>
             {transactions.length === 0 ? (
-              <View style={styles.emptyMini}><Text style={styles.emptyMiniText}>Everyone is settled up! 🎉</Text></View>
+              <View style={styles.emptyMini}><Text style={styles.emptyMiniText}>Everyone is settled up</Text></View>
             ) : (
               transactions.map((t, idx) => (
                 <View key={idx} style={styles.txRow}>

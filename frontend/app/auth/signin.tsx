@@ -47,7 +47,7 @@ export default function SignIn() {
             <View style={styles.logoBadge}><Ionicons name="airplane" size={22} color="#fff" /></View>
             <Text style={styles.logoText}>Outy</Text>
           </View>
-          <Text style={styles.title}>Welcome back ✈️</Text>
+          <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>Sign in to plan your next outy.</Text>
 
           <Text style={styles.label}>Email</Text>

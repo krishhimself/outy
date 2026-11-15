@@ -67,7 +67,7 @@ export default function ExpensesTab() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Expense Tracker</Text>
-        <Text style={styles.subtitle}>All outy spend in one place 💸</Text>
+        <Text style={styles.subtitle}>All outy spend in one place</Text>
 
         {loading ? (
           <View style={styles.center} testID="expenses-loading">

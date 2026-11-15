@@ -1,0 +1,5 @@
+# Extra packages for running the tests:  pip install -r requirements-dev.txt
+-r requirements.txt
+pytest>=8
+requests>=2.31
+mongomock-motor>=0.0.36

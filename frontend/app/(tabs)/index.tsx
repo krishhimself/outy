@@ -72,8 +72,8 @@ export default function HomeTab() {
       await Promise.all(
         allOutings.slice(0, 5).map(async (outing) => {
           try {
-            const msgs = await api.listMessages(outing.id);
-            msgs.slice(0, 3).forEach((m) => {
+            const msgs = await api.listMessages(outing.id, undefined, 3); // newest three
+            msgs.forEach((m) => {
               activityItems.push({
                 id: m.id,
                 text: m.text,

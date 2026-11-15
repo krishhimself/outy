@@ -2,7 +2,7 @@
 
 Covers:
   * /auth/signup, /auth/signin, /auth/me, /auth/username, PUT /auth/me, /auth/logout
-  * /auth/google/session (bogus token only -> 401)
+  * /auth/google/session (off by default -> 404)
   * Invite by-username flow: accept, reject, re-invite, errors
   * Chat messages + system messages on gallery / todo events
 """
@@ -16,7 +16,7 @@ import pytest
 import requests
 
 
-BASE_URL = os.environ.get("EXPO_BACKEND_URL", "https://outy-trips.preview.emergentagent.com").rstrip("/") + "/api"
+BASE_URL = os.environ.get("OUTY_API_URL", "http://localhost:8000").rstrip("/") + "/api"
 
 
 def _u(prefix: str) -> str:
@@ -201,12 +201,11 @@ class TestAuth:
         r3 = requests.get(f"{BASE_URL}/auth/me", headers=_hdr(ephem["token"]), timeout=15)
         assert r3.status_code == 401, r3.text
 
-    def test_google_session_bogus_token_returns_401(self):
+    def test_google_session_is_disabled_by_default(self):
         r = requests.post(f"{BASE_URL}/auth/google/session",
                           json={"session_token": "obviously-bogus-" + uuid.uuid4().hex},
                           timeout=15)
-        # Must NOT be 500. Could be 401 (rejected by Emergent) or 502 if upstream down.
-        assert r.status_code in (401, 502), f"Expected 401/502 got {r.status_code}: {r.text}"
+        assert r.status_code == 404, f"Expected 404 got {r.status_code}: {r.text}"
 
 
 # ---------- Invites ----------
@@ -406,7 +405,7 @@ class TestChat:
         assert "marker B" in texts
 
     def test_gallery_upload_creates_system_message(self, krish, outing):
-        tiny_png = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAS"
+        tiny_png = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAS"
                     "sJTYQAAAAASUVORK5CYII=")
         r = requests.post(f"{BASE_URL}/outings/{outing['id']}/gallery",
                           json={"image_b64": tiny_png, "caption": "test"},

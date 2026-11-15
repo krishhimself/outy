@@ -35,9 +35,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       let message = res.statusText;
       try {
         const parsed = JSON.parse(body);
-        if (parsed?.detail) message = typeof parsed.detail === "string" ? parsed.detail : message;
+        if (typeof parsed?.detail === "string") message = parsed.detail;
+        // Validation errors arrive as a list; show the first one in plain words.
+        else if (Array.isArray(parsed?.detail) && parsed.detail[0]?.msg) message = "Please check what you entered and try again.";
       } catch {}
-      throw new ApiError(res.status, body, message);
+      throw new ApiError(res.status, body, message || "Something went wrong. Please try again.");
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
@@ -154,17 +156,11 @@ export const api = {
   me: () => request<{ user: User }>("/auth/me"),
   updateMe: (body: { name?: string; avatar_url?: string | null }) =>
     request<{ user: User }>("/auth/me", { method: "PUT", body: JSON.stringify(body) }),
+  logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
   forgotPassword: (email: string) =>
-  request<{ ok: boolean }>("/auth/forgot-password", {
-    method: "POST",
-    body: JSON.stringify({ email }),
-  }),
-
-resetPassword: (email: string, otp: string, new_password: string) =>
-  request<{ ok: boolean }>("/auth/reset-password", {
-    method: "POST",
-    body: JSON.stringify({ email, otp, new_password }),
-  }),
+    request<{ ok: boolean }>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
+  resetPassword: (email: string, otp: string, new_password: string) =>
+    request<{ ok: boolean }>("/auth/reset-password", { method: "POST", body: JSON.stringify({ email, otp, new_password }) }),
 
   // Outings
   listOutings: (scope: "upcoming" | "past" | "all" = "all") => request<Outing[]>(`/outings?scope=${scope}`),
@@ -188,12 +184,14 @@ resetPassword: (email: string, otp: string, new_password: string) =>
   listExpenses: (outingId: string) => request<Expense[]>(`/outings/${outingId}/expenses`),
   addExpense: (outingId: string, body: { title: string; amount: number; category: string; paid_by: string; paid_by_name: string; split_type: "equal" | "custom"; shares: ExpenseShare[] }) =>
     request<Expense>(`/outings/${outingId}/expenses`, { method: "POST", body: JSON.stringify(body) }),
+  deleteExpense: (id: string) => request<{ ok: boolean }>(`/expenses/${id}`, { method: "DELETE" }),
   outingSettlements: (outingId: string) =>
     request<{ balances: Balance[]; transactions: SettlementTx[] }>(`/outings/${outingId}/settlements`),
   expensesSummary: () => request<{ total: number; by_outing: { outing_id: string; outing_name: string; total: number }[]; recent: (Expense & { outing_name: string })[] }>("/expenses/summary"),
 
   // Gallery
   listGallery: (outingId: string) => request<GalleryItem[]>(`/outings/${outingId}/gallery`),
+  galleryCount: (outingId: string) => request<{ count: number }>(`/outings/${outingId}/gallery/count`),
   addGalleryItem: (outingId: string, body: { image_b64: string; caption?: string }) =>
     request<GalleryItem>(`/outings/${outingId}/gallery`, { method: "POST", body: JSON.stringify(body) }),
   deleteGalleryItem: (id: string) => request<{ ok: boolean }>(`/gallery/${id}`, { method: "DELETE" }),
@@ -207,8 +205,13 @@ resetPassword: (email: string, otp: string, new_password: string) =>
   deleteTodo: (id: string) => request<{ ok: boolean }>(`/todos/${id}`, { method: "DELETE" }),
 
   // Chat
-  listMessages: (outingId: string, since?: string) =>
-    request<Message[]>(`/outings/${outingId}/messages${since ? `?since=${encodeURIComponent(since)}` : ""}`),
+  // Returns the newest `limit` messages (oldest first). With `since`, only messages after that time.
+  listMessages: (outingId: string, since?: string, limit?: number) => {
+    const params: string[] = [];
+    if (since) params.push(`since=${encodeURIComponent(since)}`);
+    if (limit) params.push(`limit=${limit}`);
+    return request<Message[]>(`/outings/${outingId}/messages${params.length ? `?${params.join("&")}` : ""}`);
+  },
   sendMessage: (outingId: string, text: string) =>
     request<Message>(`/outings/${outingId}/messages`, { method: "POST", body: JSON.stringify({ text }) }),
 };

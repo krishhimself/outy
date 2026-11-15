@@ -29,7 +29,7 @@ export default function SignUp() {
   const submit = async () => {
     setErr(null);
     if (!email.includes("@")) return setErr("Enter a valid email.");
-    if (password.length < 6) return setErr("Password must be at least 6 chars.");
+    if (password.length < 8) return setErr("Password must be at least 8 characters.");
     if (name.trim().length < 2) return setErr("Enter your name.");
     if (!/^[a-z0-9_]{3,24}$/.test(username)) return setErr("Username must be 3-24 chars (a-z, 0-9, _).");
     setLoading(true);

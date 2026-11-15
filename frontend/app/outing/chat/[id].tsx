@@ -3,8 +3,6 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -12,14 +10,23 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api, Message } from "@/src/api/client";
+import { useKeyboardHeight } from "@/src/hooks/use-keyboard-height";
 import { useAuth } from "@/src/state/auth";
 import { colors, radii, spacing } from "@/src/theme";
 
 const POLL_MS = 2000;
+
+/** Add `incoming` to `prev`, skipping any message already in the list. */
+function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
+  const seen = new Set(prev.map((m) => m.id));
+  const fresh = incoming.filter((m) => !seen.has(m.id));
+  if (fresh.length === 0) return prev;
+  return [...prev, ...fresh].sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
 
 function formatTime(iso: string): string {
   try { return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); }
@@ -35,6 +42,9 @@ export default function ChatScreen() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const lastTsRef = useRef<string | null>(null);
+  const sendingRef = useRef(false); // blocks a second send before the first finishes
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
   const listRef = useRef<FlatList<Message>>(null);
 
   const fetchAll = useCallback(async () => {
@@ -49,12 +59,13 @@ export default function ChatScreen() {
   }, [id]);
 
   const fetchSince = useCallback(async () => {
-    if (!id || !lastTsRef.current) return;
+    if (!id) return;
     try {
-      const incoming = await api.listMessages(id, lastTsRef.current);
+      const incoming = await api.listMessages(id, lastTsRef.current ?? undefined);
       if (incoming.length) {
-        setMessages((prev) => [...prev, ...incoming]);
-        lastTsRef.current = incoming[incoming.length - 1].created_at;
+        setMessages((prev) => mergeMessages(prev, incoming));
+        const newest = incoming[incoming.length - 1].created_at;
+        if (!lastTsRef.current || newest > lastTsRef.current) lastTsRef.current = newest;
       }
     } catch {}
   }, [id]);
@@ -72,17 +83,18 @@ export default function ChatScreen() {
   }, [messages.length]);
 
   const send = async () => {
-    if (!id || !text.trim() || sending) return;
-    setSending(true);
     const draft = text.trim();
+    if (!id || !draft || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
     setText("");
     try {
       const msg = await api.sendMessage(id, draft);
-      setMessages((prev) => [...prev, msg]);
-      lastTsRef.current = msg.created_at;
+      setMessages((prev) => mergeMessages(prev, [msg]));
     } catch {
       setText(draft);
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -99,7 +111,7 @@ export default function ChatScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={80}>
+      <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
         {loading ? (
           <View style={styles.center}><ActivityIndicator color={colors.primary} size="large" /></View>
         ) : (
@@ -111,14 +123,14 @@ export default function ChatScreen() {
             contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.lg, gap: 8 }}
             ListEmptyComponent={
               <View style={styles.empty} testID="chat-empty">
-                <Text style={styles.emptyTitle}>Say hi to the crew 👋</Text>
+                <Text style={styles.emptyTitle}>Say hi to the crew</Text>
                 <Text style={styles.emptySub}>Plan, joke, share. Notifications about new photos & tasks land here too.</Text>
               </View>
             }
           />
         )}
 
-        <View style={styles.composer}>
+        <View style={[styles.composer, { paddingBottom: keyboardHeight > 0 ? spacing.sm : Math.max(insets.bottom, spacing.md) }]}>
           <TextInput
             style={styles.composerInput}
             value={text}
@@ -126,6 +138,7 @@ export default function ChatScreen() {
             placeholder="Message your crew"
             placeholderTextColor={colors.textSubtle}
             multiline
+            maxLength={2000}
             testID="chat-input"
           />
           <TouchableOpacity
@@ -137,7 +150,7 @@ export default function ChatScreen() {
             {sending ? <ActivityIndicator color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
