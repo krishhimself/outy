@@ -31,7 +31,7 @@ export default function ResetPassword() {
     setErr(null);
     if (!otp.trim()) return setErr("Enter the code we sent you.");
     if (!password) return setErr("Enter a new password.");
-    if (password.length < 6) return setErr("Password must be at least 6 characters.");
+    if (password.length < 8) return setErr("Password must be at least 8 characters.");
     if (password !== confirmPassword) return setErr("Passwords don't match.");
     setLoading(true);
     try {

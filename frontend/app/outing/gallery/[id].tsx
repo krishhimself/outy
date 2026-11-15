@@ -19,6 +19,7 @@ import { ResumableZoom } from "react-native-zoom-toolkit";
 
 import { api, GalleryItem } from "@/src/api/client";
 import { useAuth } from "@/src/state/auth";
+import { confirmAction } from "@/src/utils/confirm";
 import { colors, radii, spacing } from "@/src/theme";
 
 const WINDOW = Dimensions.get("window");
@@ -78,15 +79,23 @@ export default function GalleryScreen() {
         image_b64: dataUri,
       });
       setItems((prev) => [created, ...prev]);
+    } catch (e: any) {
+      setPermError(e?.message ?? "Could not upload that photo. Please try again.");
     } finally {
       setUploading(false);
     }
   };
 
   const removeItem = async (item: GalleryItem) => {
+    const ok = await confirmAction("Delete this photo?", "It will be removed for the whole crew.");
+    if (!ok) return;
     setViewer(null);
-    await api.deleteGalleryItem(item.id);
-    setItems((prev) => prev.filter((x) => x.id !== item.id));
+    try {
+      await api.deleteGalleryItem(item.id);
+      setItems((prev) => prev.filter((x) => x.id !== item.id));
+    } catch (e: any) {
+      setPermError(e?.message ?? "Could not delete that photo.");
+    }
   };
 
   return (

@@ -20,6 +20,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { api, Expense, Outing, Todo } from "@/src/api/client";
 import { useAuth } from "@/src/state/auth";
+import { confirmAction, notify } from "@/src/utils/confirm";
 import { colors, radii, spacing } from "@/src/theme";
 
 const formatMoney = (n: number) =>
@@ -57,12 +58,12 @@ export default function OutingDetail() {
       const [o, e, g, t] = await Promise.all([
         api.getOuting(id),
         api.listExpenses(id),
-        api.listGallery(id),
+        api.galleryCount(id),
         api.listTodos(id),
       ]);
       setOuting(o);
       setTotalSpent(e.reduce((acc: number, x: Expense) => acc + x.amount, 0));
-      setGalleryCount(g.length);
+      setGalleryCount(g.count);
       setTodoStats({ total: t.length, done: t.filter((x: Todo) => x.done).length });
     } catch {
       setOuting(null);
@@ -127,8 +128,17 @@ export default function OutingDetail() {
 
   const removeOuting = async () => {
     if (!outing) return;
-    await api.deleteOuting(outing.id);
-    router.back();
+    const ok = await confirmAction(
+      "Delete this outing?",
+      `"${outing.name}" and its chat, expenses, photos and to-dos will be deleted for everyone. This can't be undone.`,
+    );
+    if (!ok) return;
+    try {
+      await api.deleteOuting(outing.id);
+      router.back();
+    } catch (e: any) {
+      notify("Could not delete", e?.message ?? "Please try again.");
+    }
   };
 
   if (loading) return (

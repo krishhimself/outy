@@ -16,7 +16,7 @@ Group trips usually end up spread across several chat threads, a spreadsheet for
 | Expenses | Equal or custom splits, balances, and a settlement plan that minimises the number of payments |
 | To-dos | Shared per-outing list, with optional assignment to a crew member |
 | Gallery | Per-outing photos with pinch-to-zoom |
-| Accounts | Email and password sign-up, Google sign-in, password reset by emailed code |
+| Accounts | Email and password sign-up, password reset by emailed code |
 
 ## Tech stack
 
@@ -25,7 +25,7 @@ Group trips usually end up spread across several chat threads, a spreadsheet for
 | Mobile app | React Native (Expo SDK 54), TypeScript, Expo Router |
 | API | FastAPI (Python 3.11), async throughout |
 | Database | MongoDB Atlas, through the Motor async driver |
-| Auth | bcrypt password hashes and opaque session tokens stored in MongoDB |
+| Auth | bcrypt password hashes and opaque session tokens (stored hashed) in MongoDB |
 | Email | Resend (password reset codes) |
 | Hosting | Render (API) |
 
@@ -40,6 +40,8 @@ outy/
 │   │   ├── config.py          Settings read from environment variables
 │   │   ├── database.py        MongoDB connection
 │   │   ├── security.py        Password hashing, sessions, auth dependency
+│   │   ├── access.py          Crew-membership checks
+│   │   ├── ratelimit.py       Limits on sign-in, reset-code and invite-code guessing
 │   │   ├── services.py        Shared side effects (chat system messages)
 │   │   ├── utils.py           Timestamps and code generation
 │   │   └── routers/           One module per feature
@@ -52,6 +54,7 @@ outy/
 │   │       └── chat.py
 │   ├── tests/                 API tests (pytest)
 │   ├── requirements.txt
+│   ├── requirements-dev.txt   Extra packages for running the tests
 │   └── runtime.txt            Python version for Render
 ├── frontend/
 │   ├── app/                   Screens (file-based routes)
@@ -68,7 +71,8 @@ outy/
 │   ├── assets/                Icons, splash, fonts
 │   └── app.json               Expo configuration
 ├── docs/
-│   └── design-guidelines.json Design tokens and UI guidelines
+│   ├── design-guidelines.json Design tokens and UI guidelines
+│   └── security-review.md     What the security review found and fixed
 ├── start-backend.ps1
 └── start-frontend.ps1
 ```
@@ -127,6 +131,7 @@ Scan the QR code with Expo Go, or press `w` for the web version.
 | `RESEND_API_KEY` | For password reset | Resend API key |
 | `SESSION_TTL_DAYS` | No (default 30) | How long a sign-in lasts |
 | `INVITE_TTL_DAYS` | No (default 7) | How long an invite stays pending |
+| `GOOGLE_AUTH_ENABLED` | No (default off) | Set to `true` to turn the Google sign-in endpoint on |
 
 `frontend/.env`
 
@@ -139,16 +144,15 @@ Never commit a `.env` file. Both are ignored by git.
 
 ## Tests
 
-The API tests run against a running backend:
+The API tests start the server themselves on an in-memory database, so they need no running backend and never touch your real data:
 
 ```powershell
 cd backend
-venv\Scripts\python.exe -m pip install pytest requests
-$env:OUTY_API_URL = "http://localhost:8000"
+venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 venv\Scripts\python.exe -m pytest tests
 ```
 
-They create test users and outings in whichever database the backend is connected to, so point the backend at a test database first.
+`tests/test_security.py` plays an attacker (a signed-in user outside the crew, a password-reset code guesser, and so on) and checks the API refuses.
 
 Frontend checks:
 
@@ -165,6 +169,7 @@ The API is deployed on Render from the `backend` folder.
 - Build command: `pip install -r requirements.txt`
 - Start command: `uvicorn server:app --host 0.0.0.0 --port $PORT`
 - Environment variables: the same names as `backend/.env`
+- Uptime monitor URL: `https://<your-service>.onrender.com/health` (answers both GET and HEAD)
 
 ## Known limitations
 

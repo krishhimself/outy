@@ -1,28 +1,43 @@
-"""Sign up, sign in, Google session exchange, profile, and password reset."""
+"""Sign up, sign in, profile, and password reset."""
 
+import hashlib
+import hmac
 import logging
+import re
+import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-import random
-import string
-import uuid
 
 import httpx
 import resend
-from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel, EmailStr, Field
+from pymongo.errors import DuplicateKeyError
 
-from app.config import EMERGENT_SESSION_DATA_URL
+from app.config import EMERGENT_SESSION_DATA_URL, GOOGLE_AUTH_ENABLED
 from app.database import PROJECTION, db
+from app.ratelimit import TOO_MANY, client_ip, limiter
 from app.security import (
     create_session, ensure_unique_username, gen_unique_username, get_current_user,
-    hash_password, normalize_username, verify_password,
+    hash_password, normalize_username, session_query, validate_new_password, verify_password,
 )
 from app.utils import gen_code, now_dt, now_iso
 
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+MAX_NAME_LENGTH = 60
+MAX_AVATAR_CHARS = 2_000_000  # about 1.5 MB of image data
+AVATAR_DATA_URI = re.compile(r"^data:image/(jpeg|jpg|png|webp|gif|heic|heif);base64,")
+
+OTP_TTL_MINUTES = 15
+OTP_MAX_ATTEMPTS = 5
+OTP_RESEND_COOLDOWN_SECONDS = 60
+
+SIGNIN_MAX_FAILURES = 8          # per email
+SIGNIN_LOCK_SECONDS = 15 * 60
 
 
 class User(BaseModel):
@@ -41,37 +56,45 @@ def public_user(doc: dict) -> dict:
     return {k: v for k, v in doc.items() if k not in ("_id", "password_hash", "google_sub")}
 
 
+def clean_name(raw: str) -> str:
+    name = raw.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+    if len(name) > MAX_NAME_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Name must be {MAX_NAME_LENGTH} characters or fewer")
+    return name
+
+
 class SignupPayload(BaseModel):
     email: EmailStr
-    password: str
-    name: str
-    username: str
+    password: str = Field(max_length=200)
+    name: str = Field(max_length=200)
+    username: str = Field(max_length=64)
 
 
 class SigninPayload(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=200)
 
 
 class GoogleSessionPayload(BaseModel):
-    session_token: str  # token returned by Emergent /session-data
+    session_token: str = Field(max_length=500)
 
 
 class ClaimUsernamePayload(BaseModel):
-    username: str
+    username: str = Field(max_length=64)
 
 
 class UpdateProfilePayload(BaseModel):
-    name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=200)
+    avatar_url: Optional[str] = Field(default=None, max_length=MAX_AVATAR_CHARS)
 
 
 @router.post("/auth/signup")
-async def signup(payload: SignupPayload):
-    if len(payload.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 chars")
-    if not payload.name.strip():
-        raise HTTPException(status_code=400, detail="Name required")
+async def signup(payload: SignupPayload, request: Request):
+    limiter.check(f"signup-ip:{client_ip(request)}", limit=20, window=3600)
+    validate_new_password(payload.password)
+    name = clean_name(payload.name)
     email = payload.email.lower()
     username = normalize_username(payload.username)
     await ensure_unique_username(username)
@@ -81,7 +104,7 @@ async def signup(payload: SignupPayload):
     user_doc = {
         "id": str(uuid.uuid4()),
         "email": email,
-        "name": payload.name.strip(),
+        "name": name,
         "username": username,
         "avatar_url": None,
         "auth_provider": "password",
@@ -89,26 +112,42 @@ async def signup(payload: SignupPayload):
         "invite_code": gen_code(6),
         "created_at": now_iso(),
     }
-    await db.users.insert_one(user_doc)
+    try:
+        await db.users.insert_one(user_doc)
+    except DuplicateKeyError:
+        # two sign-ups raced for the same email or username
+        raise HTTPException(status_code=409, detail="Email or username already taken")
     token = await create_session(user_doc["id"])
     return {"token": token, "user": public_user(user_doc), "needs_username": False}
 
 
 @router.post("/auth/signin")
-async def signin(payload: SigninPayload):
+async def signin(payload: SigninPayload, request: Request):
     email = payload.email.lower()
+    limiter.check(f"signin-ip:{client_ip(request)}", limit=60, window=300)
+    fail_key = f"signin-fail:{email}"
+    if limiter.is_blocked(fail_key, SIGNIN_MAX_FAILURES, SIGNIN_LOCK_SECONDS):
+        raise HTTPException(status_code=429, detail=TOO_MANY)
+
     user = await db.users.find_one({"email": email}, PROJECTION)
-    if not user or user.get("auth_provider") != "password":
+    password_ok = bool(
+        user
+        and user.get("password_hash")
+        and verify_password(payload.password, user["password_hash"])
+    )
+    if not password_ok:
+        limiter.record(fail_key)
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not verify_password(payload.password, user.get("password_hash", "")):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    limiter.reset(fail_key)
     token = await create_session(user["id"])
     return {"token": token, "user": public_user(user), "needs_username": False}
 
 
 @router.post("/auth/google/session")
 async def google_session(payload: GoogleSessionPayload):
-    """Exchange the Emergent session_token (from the OAuth redirect) for an Outy session."""
+    """Exchange an Emergent OAuth session for an Outy session. Off unless GOOGLE_AUTH_ENABLED=true."""
+    if not GOOGLE_AUTH_ENABLED:
+        raise HTTPException(status_code=404, detail="Google sign-in is not available")
     headers = {"X-Session-ID": payload.session_token}
     try:
         async with httpx.AsyncClient(timeout=10) as hc:
@@ -119,26 +158,17 @@ async def google_session(payload: GoogleSessionPayload):
         raise HTTPException(status_code=401, detail="Invalid Google session")
     data = res.json()
     email = (data.get("email") or "").lower()
-    name = data.get("name") or "Friend"
+    name = (data.get("name") or "Friend")[:MAX_NAME_LENGTH]
     picture = data.get("picture")
-    session_token = data.get("session_token") or payload.session_token
     if not email:
         raise HTTPException(status_code=400, detail="Google session missing email")
 
     existing = await db.users.find_one({"email": email}, PROJECTION)
     if existing:
-        if existing.get("auth_provider") == "password":
-            # link Google to an existing account
-            await db.users.update_one(
-                {"id": existing["id"]},
-                {"$set": {"auth_provider": "google", "avatar_url": picture or existing.get("avatar_url")}},
-            )
-            existing["auth_provider"] = "google"
-            existing["avatar_url"] = picture or existing.get("avatar_url")
         user_doc = existing
-        needs_username = False  # has username already
+        needs_username = False
     else:
-        # New user: generate temp username, ask client to claim a proper one
+        # New user: generate a temporary username, the app then asks them to pick one
         temp_username = await gen_unique_username(email.split("@")[0])
         user_doc = {
             "id": str(uuid.uuid4()),
@@ -153,7 +183,8 @@ async def google_session(payload: GoogleSessionPayload):
         await db.users.insert_one(user_doc)
         needs_username = True
 
-    token = await create_session(user_doc["id"], ext_token=session_token)
+    # Always issue our own token; never reuse one a third party has seen.
+    token = await create_session(user_doc["id"])
     return {"token": token, "user": public_user(user_doc), "needs_username": needs_username}
 
 
@@ -161,7 +192,10 @@ async def google_session(payload: GoogleSessionPayload):
 async def claim_username(payload: ClaimUsernamePayload, current=Depends(get_current_user)):
     new_username = normalize_username(payload.username)
     await ensure_unique_username(new_username, allow_user_id=current["id"])
-    await db.users.update_one({"id": current["id"]}, {"$set": {"username": new_username}})
+    try:
+        await db.users.update_one({"id": current["id"]}, {"$set": {"username": new_username}})
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail="Username already taken")
     fresh = await db.users.find_one({"id": current["id"]}, PROJECTION)
     return {"user": public_user(fresh)}
 
@@ -173,9 +207,19 @@ async def auth_me(current=Depends(get_current_user)):
 
 @router.put("/auth/me")
 async def update_me(payload: UpdateProfilePayload, current=Depends(get_current_user)):
-    update = {k: v for k, v in payload.dict().items() if v is not None and v != ""}
+    update: dict = {}
+    if payload.name is not None and payload.name != "":
+        update["name"] = clean_name(payload.name)
+    if payload.avatar_url:
+        avatar = payload.avatar_url
+        if not (avatar.startswith("https://") or AVATAR_DATA_URI.match(avatar)):
+            raise HTTPException(status_code=400, detail="Profile photo must be an image")
+        update["avatar_url"] = avatar
     if update:
         await db.users.update_one({"id": current["id"]}, {"$set": update})
+        # keep the copy of this person inside every crew list in step
+        member_update = {f"members.$.{field}": value for field, value in update.items()}
+        await db.outings.update_many({"members.user_id": current["id"]}, {"$set": member_update})
     fresh = await db.users.find_one({"id": current["id"]}, PROJECTION)
     return {"user": public_user(fresh)}
 
@@ -183,37 +227,78 @@ async def update_me(payload: UpdateProfilePayload, current=Depends(get_current_u
 @router.post("/auth/logout")
 async def logout(authorization: Optional[str] = Header(default=None)):
     if authorization and authorization.startswith("Bearer "):
-        await db.user_sessions.delete_one({"session_token": authorization[7:].strip()})
+        await db.user_sessions.delete_one(session_query(authorization[7:].strip()))
     return {"ok": True}
 
 
+# ---------- Password reset ----------
 class ForgotPasswordPayload(BaseModel):
     email: EmailStr
 
+
 class VerifyOTPPayload(BaseModel):
     email: EmailStr
-    otp: str
+    otp: str = Field(max_length=12)
+
 
 class ResetPasswordPayload(BaseModel):
     email: EmailStr
-    otp: str
-    new_password: str
+    otp: str = Field(max_length=12)
+    new_password: str = Field(max_length=200)
+
+
+def _hash_otp(email: str, otp: str) -> str:
+    return hashlib.sha256(f"{email}:{otp}".encode()).hexdigest()
+
+
+def _parse_time(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+async def _check_otp(email: str, otp: str) -> None:
+    """Raise 400 unless `otp` is the live reset code for `email`. Wrong guesses are
+    counted, and the code is destroyed after OTP_MAX_ATTEMPTS of them."""
+    record = await db.password_resets.find_one({"email": email}, PROJECTION)
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    if _parse_time(record["expires_at"]) < now_dt():
+        await db.password_resets.delete_many({"email": email})
+        raise HTTPException(status_code=400, detail="Code expired. Request a new one.")
+    if record.get("attempts", 0) >= OTP_MAX_ATTEMPTS:
+        await db.password_resets.delete_many({"email": email})
+        raise HTTPException(status_code=400, detail="Too many wrong attempts. Request a new code.")
+    if not hmac.compare_digest(record.get("otp_hash", ""), _hash_otp(email, otp.strip())):
+        attempts = record.get("attempts", 0) + 1
+        if attempts >= OTP_MAX_ATTEMPTS:
+            await db.password_resets.delete_many({"email": email})
+            raise HTTPException(status_code=400, detail="Too many wrong attempts. Request a new code.")
+        await db.password_resets.update_one({"email": email}, {"$set": {"attempts": attempts}})
+        raise HTTPException(status_code=400, detail="Invalid code")
+
 
 @router.post("/auth/forgot-password")
-async def forgot_password(payload: ForgotPasswordPayload):
+async def forgot_password(payload: ForgotPasswordPayload, request: Request):
+    """Always answers {"ok": true}, so the response never reveals whether an email has an account."""
     email = payload.email.lower()
+    limiter.check(f"forgot-ip:{client_ip(request)}", limit=20, window=3600)
     user = await db.users.find_one({"email": email}, PROJECTION)
-    if not user:
+    if not user or not user.get("password_hash"):
         return {"ok": True}
-    if user.get("auth_provider") != "password":
-        raise HTTPException(status_code=400, detail="This account uses Google Sign In")
-    otp = "".join(random.choices(string.digits, k=6))
-    expires = (now_dt() + timedelta(minutes=15)).isoformat()
+
+    existing = await db.password_resets.find_one({"email": email}, PROJECTION)
+    if existing:
+        age = (now_dt() - _parse_time(existing["created_at"])).total_seconds()
+        if age < OTP_RESEND_COOLDOWN_SECONDS:
+            return {"ok": True}  # a code was just sent; don't send another yet
+
+    otp = f"{secrets.randbelow(1_000_000):06d}"
     await db.password_resets.delete_many({"email": email})
     await db.password_resets.insert_one({
         "email": email,
-        "otp": otp,
-        "expires_at": expires,
+        "otp_hash": _hash_otp(email, otp),
+        "attempts": 0,
+        "expires_at": (now_dt() + timedelta(minutes=OTP_TTL_MINUTES)).isoformat(),
         "created_at": now_iso(),
     })
     try:
@@ -226,50 +311,36 @@ async def forgot_password(payload: ForgotPasswordPayload):
                 <h2 style="color: #FF6B6B;">Reset your Outy password</h2>
                 <p>Your one-time code is:</p>
                 <h1 style="letter-spacing: 8px; color: #1C1E21; font-size: 48px;">{otp}</h1>
-                <p style="color: #888;">This code expires in 15 minutes.</p>
+                <p style="color: #888;">This code expires in {OTP_TTL_MINUTES} minutes.</p>
                 <p style="color: #888;">If you didn't request this, ignore this email.</p>
             </div>
             """,
         })
     except Exception as e:
-        logger.error(f"Resend error: {e}")
+        logger.error("Could not send reset email: %s", e)
     return {"ok": True}
+
 
 @router.post("/auth/verify-otp")
 async def verify_otp(payload: VerifyOTPPayload):
-    email = payload.email.lower()
-    record = await db.password_resets.find_one({"email": email}, PROJECTION)
-    if not record:
-        raise HTTPException(status_code=400, detail="No reset request found")
-    expires = datetime.fromisoformat(record["expires_at"])
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if expires < now_dt():
-        await db.password_resets.delete_many({"email": email})
-        raise HTTPException(status_code=400, detail="Code expired")
-    if record["otp"] != payload.otp:
-        raise HTTPException(status_code=400, detail="Invalid code")
+    await _check_otp(payload.email.lower(), payload.otp)
     return {"ok": True}
+
 
 @router.post("/auth/reset-password")
 async def reset_password(payload: ResetPasswordPayload):
     email = payload.email.lower()
-    record = await db.password_resets.find_one({"email": email}, PROJECTION)
-    if not record:
-        raise HTTPException(status_code=400, detail="No reset request found")
-    expires = datetime.fromisoformat(record["expires_at"])
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if expires < now_dt():
-        await db.password_resets.delete_many({"email": email})
-        raise HTTPException(status_code=400, detail="Code expired")
-    if record["otp"] != payload.otp:
-        raise HTTPException(status_code=400, detail="Invalid code")
-    if len(payload.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 chars")
+    validate_new_password(payload.new_password)
+    await _check_otp(email, payload.otp)
+    user = await db.users.find_one({"email": email}, PROJECTION)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
     await db.users.update_one(
-        {"email": email},
-        {"$set": {"password_hash": hash_password(payload.new_password)}}
+        {"id": user["id"]},
+        {"$set": {"password_hash": hash_password(payload.new_password)}},
     )
     await db.password_resets.delete_many({"email": email})
+    # Sign out every device: whoever knew the old password loses access too.
+    await db.user_sessions.delete_many({"user_id": user["id"]})
+    limiter.reset(f"signin-fail:{email}")
     return {"ok": True}

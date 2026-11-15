@@ -6,10 +6,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.access import require_member
 from app.database import PROJECTION, db
-from app.security import (
-    get_current_user,
-)
+from app.security import get_current_user
 from app.utils import now_iso
 
 
@@ -27,17 +26,16 @@ class Message(BaseModel):
     created_at: str = Field(default_factory=now_iso)
 
 
+MAX_MESSAGE_LENGTH = 2000
+
+
 class MessageCreate(BaseModel):
-    text: str
+    text: str = Field(max_length=MAX_MESSAGE_LENGTH)
 
 
 @router.post("/outings/{outing_id}/messages", response_model=Message)
 async def post_message(outing_id: str, payload: MessageCreate, current=Depends(get_current_user)):
-    outing = await db.outings.find_one({"id": outing_id}, PROJECTION)
-    if not outing:
-        raise HTTPException(status_code=404, detail="Outing not found")
-    if not any(m["user_id"] == current["id"] for m in outing.get("members", [])):
-        raise HTTPException(status_code=403, detail="Not a crew member")
+    await require_member(outing_id, current)
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
@@ -55,14 +53,12 @@ async def post_message(outing_id: str, payload: MessageCreate, current=Depends(g
 
 @router.get("/outings/{outing_id}/messages", response_model=List[Message])
 async def list_messages(outing_id: str, since: Optional[str] = None, limit: int = 200, current=Depends(get_current_user)):
-    outing = await db.outings.find_one({"id": outing_id}, PROJECTION)
-    if not outing:
-        raise HTTPException(status_code=404, detail="Outing not found")
-    if not any(m["user_id"] == current["id"] for m in outing.get("members", [])):
-        raise HTTPException(status_code=403, detail="Not a crew member")
+    await require_member(outing_id, current)
     query: dict = {"outing_id": outing_id}
     if since:
         query["created_at"] = {"$gt": since}
-    docs = await db.messages.find(query, PROJECTION).to_list(limit)
-    docs.sort(key=lambda d: d.get("created_at", ""))
+    # Newest `limit` messages, returned oldest-first for display.
+    limit = max(1, min(limit, 500))
+    docs = await db.messages.find(query, PROJECTION).sort("created_at", -1).limit(limit).to_list(limit)
+    docs.reverse()
     return [Message(**d) for d in docs]

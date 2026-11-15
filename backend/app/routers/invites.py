@@ -5,13 +5,13 @@ from typing import List, Optional
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import INVITE_TTL_DAYS
+from app.access import is_member, require_member
 from app.database import PROJECTION, db
-from app.security import (
-    get_current_user, normalize_username,
-)
+from app.ratelimit import TOO_MANY, limiter
+from app.security import get_current_user, normalize_username
 from app.services import post_system_message
 from app.utils import now_dt, now_iso
 from app.routers.outings import Outing
@@ -21,11 +21,11 @@ router = APIRouter()
 
 
 class InviteByUsernamePayload(BaseModel):
-    username: str
+    username: str = Field(max_length=64)
 
 
 class JoinByCodePayload(BaseModel):
-    invite_code: str
+    invite_code: str = Field(max_length=32)
 
 
 class Invite(BaseModel):
@@ -53,17 +53,14 @@ async def _expire_invites(user_id: str) -> None:
 
 @router.post("/outings/{outing_id}/invite", response_model=Invite)
 async def invite_by_username(outing_id: str, payload: InviteByUsernamePayload, current=Depends(get_current_user)):
-    outing = await db.outings.find_one({"id": outing_id}, PROJECTION)
-    if not outing:
-        raise HTTPException(status_code=404, detail="Outing not found")
-    if not any(m["user_id"] == current["id"] for m in outing.get("members", [])):
-        raise HTTPException(status_code=403, detail="Only crew members can invite")
+    outing = await require_member(outing_id, current, detail="Only crew members can invite")
+    limiter.check(f"invite:{current['id']}", limit=30, window=600)
     invited = await db.users.find_one({"username": normalize_username(payload.username)}, PROJECTION)
     if not invited:
         raise HTTPException(status_code=404, detail="No user with that username")
     if invited["id"] == current["id"]:
         raise HTTPException(status_code=400, detail="You're already in this outing")
-    if any(m["user_id"] == invited["id"] for m in outing.get("members", [])):
+    if is_member(outing, invited["id"]):
         raise HTTPException(status_code=409, detail=f"{invited['name']} is already a crew member")
     # check for an existing pending invite
     existing = await db.invites.find_one({
@@ -116,9 +113,9 @@ async def accept_invite(invite_id: str, current=Depends(get_current_user)):
     if not outing:
         await db.invites.delete_one({"id": invite_id})
         raise HTTPException(status_code=404, detail="Outing no longer exists")
-    if not any(m["user_id"] == current["id"] for m in outing.get("members", [])):
+    if not is_member(outing, current["id"]):
         await db.outings.update_one(
-            {"id": inv["outing_id"]},
+            {"id": inv["outing_id"], "members.user_id": {"$ne": current["id"]}},
             {"$push": {"members": {"user_id": current["id"], "name": current["name"], "avatar_url": current.get("avatar_url")}}},
         )
         await post_system_message(inv["outing_id"], f"{current['name']} joined the crew")
@@ -140,12 +137,18 @@ async def reject_invite(invite_id: str, current=Depends(get_current_user)):
 
 @router.post("/outings/join", response_model=Outing)
 async def join_by_code(payload: JoinByCodePayload, current=Depends(get_current_user)):
-    outing = await db.outings.find_one({"invite_code": payload.invite_code.upper()}, PROJECTION)
+    # Only wrong codes count toward the limit, so normal use is never slowed down.
+    guess_key = f"join-miss:{current['id']}"
+    if limiter.is_blocked(guess_key, limit=10, window=600):
+        raise HTTPException(status_code=429, detail=TOO_MANY)
+    code = payload.invite_code.strip().upper()
+    outing = await db.outings.find_one({"invite_code": code}, PROJECTION) if code else None
     if not outing:
+        limiter.record(guess_key)
         raise HTTPException(status_code=404, detail="Invalid invite code")
-    if not any(m["user_id"] == current["id"] for m in outing.get("members", [])):
+    if not is_member(outing, current["id"]):
         await db.outings.update_one(
-            {"id": outing["id"]},
+            {"id": outing["id"], "members.user_id": {"$ne": current["id"]}},
             {"$push": {"members": {"user_id": current["id"], "name": current["name"], "avatar_url": current.get("avatar_url")}}},
         )
         await post_system_message(outing["id"], f"{current['name']} joined the crew via invite code")

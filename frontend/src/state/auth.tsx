@@ -53,20 +53,27 @@ const bootstrap = useCallback(async () => {
     }
     setToken(saved);
     setAuthToken(saved);
-    try {
-      const { user } = await api.me();
-      setState({ status: "authenticated", user, needsUsername: false });
-    } catch (e: any) {
-      if (e?.name === "AbortError" || e?.message === "Request timed out. Please try again.") {
-        setAuthToken(null);
-        setState({ status: "unauthenticated" });
-      } else {
-        await storage.secureRemove(TOKEN_KEY);
-        setAuthToken(null);
-        setToken(null);
-        setState({ status: "unauthenticated" });
+    // The server can take up to a minute to wake up, so try twice before giving
+    // up. Only a real "this session is invalid" answer (401) signs the
+    // person out; a slow or unreachable server must not throw away their sign-in.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const { user } = await api.me();
+        setState({ status: "authenticated", user, needsUsername: false });
+        return;
+      } catch (e: any) {
+        if (e instanceof ApiError && e.status === 401) {
+          await storage.secureRemove(TOKEN_KEY);
+          setAuthToken(null);
+          setToken(null);
+          setState({ status: "unauthenticated" });
+          return;
+        }
+        if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
+    setAuthToken(null);
+    setState({ status: "unauthenticated" });
   }, []);
 
   useEffect(() => {
@@ -77,9 +84,12 @@ const bootstrap = useCallback(async () => {
     try {
       const { user } = await api.me();
       setState({ status: "authenticated", user, needsUsername });
-    } catch {
-      await applyToken(null);
-      setState({ status: "unauthenticated" });
+    } catch (e: any) {
+      // only sign out when the server says the session is no longer valid
+      if (e instanceof ApiError && e.status === 401) {
+        await applyToken(null);
+        setState({ status: "unauthenticated" });
+      }
     }
   }, [needsUsername, applyToken]);
 
@@ -149,11 +159,3 @@ export function useAuth() {
 }
 
 export { ApiError };
-
-function extractFromFragment(url: string, key: string): string | null {
-  const hashIdx = url.indexOf("#");
-  if (hashIdx === -1) return null;
-  const frag = url.slice(hashIdx + 1);
-  const params = new URLSearchParams(frag);
-  return params.get(key);
-}

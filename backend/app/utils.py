@@ -1,7 +1,7 @@
 """Small shared helpers: timestamps and code generation."""
 
 from datetime import datetime, timezone
-import random
+import secrets
 import string
 
 
@@ -14,4 +14,6 @@ def now_dt() -> datetime:
 
 
 def gen_code(n: int = 6) -> str:
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n))
+    """Random invite code. Uses `secrets` so codes cannot be predicted."""
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(n))

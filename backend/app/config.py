@@ -16,5 +16,7 @@ SESSION_TTL_DAYS = int(os.environ.get("SESSION_TTL_DAYS", "30"))
 INVITE_TTL_DAYS = int(os.environ.get("INVITE_TTL_DAYS", "7"))
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
-# Google sign-in currently goes through the Emergent OAuth proxy.
+# Google sign-in goes through a third-party OAuth proxy (Emergent) and the app
+# has no Google button yet, so the endpoint stays off unless this is "true".
+GOOGLE_AUTH_ENABLED = os.environ.get("GOOGLE_AUTH_ENABLED", "").lower() == "true"
 EMERGENT_SESSION_DATA_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"

@@ -35,9 +35,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       let message = res.statusText;
       try {
         const parsed = JSON.parse(body);
-        if (parsed?.detail) message = typeof parsed.detail === "string" ? parsed.detail : message;
+        if (typeof parsed?.detail === "string") message = parsed.detail;
+        // Validation errors arrive as a list; show the first one in plain words.
+        else if (Array.isArray(parsed?.detail) && parsed.detail[0]?.msg) message = "Please check what you entered and try again.";
       } catch {}
-      throw new ApiError(res.status, body, message);
+      throw new ApiError(res.status, body, message || "Something went wrong. Please try again.");
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
@@ -189,6 +191,7 @@ export const api = {
 
   // Gallery
   listGallery: (outingId: string) => request<GalleryItem[]>(`/outings/${outingId}/gallery`),
+  galleryCount: (outingId: string) => request<{ count: number }>(`/outings/${outingId}/gallery/count`),
   addGalleryItem: (outingId: string, body: { image_b64: string; caption?: string }) =>
     request<GalleryItem>(`/outings/${outingId}/gallery`, { method: "POST", body: JSON.stringify(body) }),
   deleteGalleryItem: (id: string) => request<{ ok: boolean }>(`/gallery/${id}`, { method: "DELETE" }),
@@ -202,8 +205,13 @@ export const api = {
   deleteTodo: (id: string) => request<{ ok: boolean }>(`/todos/${id}`, { method: "DELETE" }),
 
   // Chat
-  listMessages: (outingId: string, since?: string) =>
-    request<Message[]>(`/outings/${outingId}/messages${since ? `?since=${encodeURIComponent(since)}` : ""}`),
+  // Returns the newest `limit` messages (oldest first). With `since`, only messages after that time.
+  listMessages: (outingId: string, since?: string, limit?: number) => {
+    const params: string[] = [];
+    if (since) params.push(`since=${encodeURIComponent(since)}`);
+    if (limit) params.push(`limit=${limit}`);
+    return request<Message[]>(`/outings/${outingId}/messages${params.length ? `?${params.join("&")}` : ""}`);
+  },
   sendMessage: (outingId: string, text: string) =>
     request<Message>(`/outings/${outingId}/messages`, { method: "POST", body: JSON.stringify({ text }) }),
 };
