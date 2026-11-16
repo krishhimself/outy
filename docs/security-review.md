@@ -1,6 +1,6 @@
 # Security review
 
-November 2026. Every item under "Fixed" has a test in `backend/tests/test_security.py` that failed before the fix and passes after it.
+November 2026, two rounds. Every item under "Fixed" has a test in `backend/tests/test_security.py` that failed before the fix and passes after it.
 
 ## Fixed
 
@@ -43,6 +43,19 @@ The reset code is six digits, and nothing limited wrong guesses, so all one mill
 | Invite codes used a predictable random source | Uses `secrets`; codes are checked for uniqueness |
 | Passwords could be six characters | Eight minimum for new passwords |
 
+## Round two
+
+| Area | Result |
+| --- | --- |
+| Backend packages | 21 known vulnerabilities in `starlette` and `pymongo`; upgraded FastAPI, Starlette, Motor and PyMongo; the scan is now clean |
+| Frontend packages | 34 advisories, almost all in build tools that run on the developer's machine, not in the app. Safe updates applied (34 down to 20, no critical left). The rest need the Expo SDK upgrade |
+| Settlement maths | 300 randomly generated trips: balances always sum to zero and the payment plan always settles everyone |
+| Dates | Outings created between midnight and 5:30 am India time were saved one day early; "upcoming" and "past" switched at 5:30 am instead of midnight. Both fixed |
+| Silent failures | Profile save, invite accept and decline, and adding a to-do failed without any message. They now say what went wrong |
+| Remaining screens | Create, profile, invites, join by code, custom split, gallery, memories, password reset: run in a browser, 15 of 15 checks pass |
+
+Settings outside the repository (Render, Atlas, Resend) are in `deployment-checklist.md`.
+
 ## Not fixed yet
 
 - **Photos live in MongoDB as base64.** Profile photos are also copied into every outing and chat message, so the database grows quickly. Moving images to object storage (Cloudinary is the plan) fixes both.
@@ -51,3 +64,5 @@ The reset code is six digits, and nothing limited wrong guesses, so all one mill
 - **No way to leave an outing, remove a member, or change an invite code.** A leaked code stays valid for the life of the outing.
 - **Expired sessions are never cleaned up.** They are rejected, but the rows stay in the database.
 - **On web, the session token is in browser storage.** That is normal for this kind of app, but it means any script-injection bug would expose it.
+- **Expo SDK is four versions behind** (54, newest 58). The remaining frontend advisories and Expo Go compatibility both depend on upgrading.
+- **Nothing has been run on a real phone or against a real MongoDB server.** The tests use an in-memory database and the web build.

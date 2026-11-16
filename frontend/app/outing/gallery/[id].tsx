@@ -43,6 +43,8 @@ export default function GalleryScreen() {
     try {
       const list = await api.listGallery(id);
       setItems(list);
+    } catch {
+      // keep whatever is on screen; the next refresh tries again
     } finally {
       setLoading(false);
     }

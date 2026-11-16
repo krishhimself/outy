@@ -5,6 +5,7 @@ MongoDB (plus Google sign-in). Every route lives under /api.
 """
 
 import logging
+from contextlib import asynccontextmanager
 
 import resend
 from fastapi import APIRouter, FastAPI, Request
@@ -21,7 +22,29 @@ logging.basicConfig(level=logging.INFO,
 
 resend.api_key = RESEND_API_KEY
 
-app = FastAPI(title="Outy API")
+async def setup_indexes() -> None:
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("username", unique=True)
+    await db.user_sessions.create_index("session_token", unique=True)
+    await db.user_sessions.create_index("user_id")
+    await db.password_resets.create_index("email")
+    await db.outings.create_index("members.user_id")
+    await db.outings.create_index("invite_code")
+    await db.messages.create_index([("outing_id", 1), ("created_at", -1)])
+    await db.expenses.create_index("outing_id")
+    await db.gallery.create_index("outing_id")
+    await db.todos.create_index("outing_id")
+    await db.invites.create_index("invited_user_id")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await setup_indexes()
+    yield
+    client.close()
+
+
+app = FastAPI(title="Outy API", lifespan=lifespan)
 api_router = APIRouter(prefix="/api")
 
 
@@ -59,24 +82,3 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(api_router)
-
-
-@app.on_event("startup")
-async def setup_indexes():
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("username", unique=True)
-    await db.user_sessions.create_index("session_token", unique=True)
-    await db.user_sessions.create_index("user_id")
-    await db.password_resets.create_index("email")
-    await db.outings.create_index("members.user_id")
-    await db.outings.create_index("invite_code")
-    await db.messages.create_index([("outing_id", 1), ("created_at", -1)])
-    await db.expenses.create_index("outing_id")
-    await db.gallery.create_index("outing_id")
-    await db.todos.create_index("outing_id")
-    await db.invites.create_index("invited_user_id")
-
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()

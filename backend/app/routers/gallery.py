@@ -52,7 +52,7 @@ async def add_gallery_item(outing_id: str, payload: GalleryCreate, current=Depen
         uploaded_by_name=current["name"],
         caption=(payload.caption or "").strip(),
     )
-    await db.gallery.insert_one(item.dict())
+    await db.gallery.insert_one(item.model_dump())
     await post_system_message(outing_id, f"{current['name']} added a new photo to the gallery")
     return item
 

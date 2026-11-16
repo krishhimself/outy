@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api, Invite } from "@/src/api/client";
 import { colors, radii, spacing } from "@/src/theme";
+import { notify } from "@/src/utils/confirm";
 
 function daysUntilExpire(iso: string): number {
   const exp = new Date(iso).getTime();
@@ -32,6 +33,8 @@ export default function InvitesScreen() {
     try {
       const list = await api.listInvites();
       setInvites(list);
+    } catch {
+      // keep whatever is on screen; pull to refresh tries again
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -46,6 +49,9 @@ export default function InvitesScreen() {
       const outing = await api.acceptInvite(inv.id);
       setInvites((prev) => prev.filter((x) => x.id !== inv.id));
       router.push(`/outing/${outing.id}`);
+    } catch (e: any) {
+      notify("Could not join", e?.message ?? "Please try again.");
+      fetchData();
     } finally {
       setActingId(null);
     }
@@ -56,6 +62,9 @@ export default function InvitesScreen() {
     try {
       await api.rejectInvite(inv.id);
       setInvites((prev) => prev.filter((x) => x.id !== inv.id));
+    } catch (e: any) {
+      notify("Could not decline", e?.message ?? "Please try again.");
+      fetchData();
     } finally {
       setActingId(null);
     }

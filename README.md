@@ -72,7 +72,8 @@ outy/
 │   └── app.json               Expo configuration
 ├── docs/
 │   ├── design-guidelines.json Design tokens and UI guidelines
-│   └── security-review.md     What the security review found and fixed
+│   ├── security-review.md     What the security review found and fixed
+│   └── deployment-checklist.md Render, Atlas and Resend settings to check by hand
 ├── start-backend.ps1
 └── start-frontend.ps1
 ```

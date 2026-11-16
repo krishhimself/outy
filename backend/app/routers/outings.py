@@ -111,10 +111,13 @@ async def create_outing(payload: OutingCreate, current=Depends(get_current_user)
 
 
 @router.get("/outings", response_model=List[Outing])
-async def list_outings(scope: str = "all", current=Depends(get_current_user)):
+async def list_outings(scope: str = "all", today: Optional[str] = None, current=Depends(get_current_user)):
     docs = await db.outings.find({"members.user_id": current["id"]}, PROJECTION).to_list(1000)
     outings = [Outing(**d) for d in docs]
-    today = now_dt().date().isoformat()
+    # The app sends its own local date; the server's clock is UTC and would
+    # move trips between "upcoming" and "past" hours late for anyone east of it.
+    if not (today and DATE_RE.match(today)):
+        today = now_dt().date().isoformat()
     if scope == "upcoming":
         outings = [o for o in outings if o.end_date >= today]
     elif scope == "past":
@@ -133,7 +136,7 @@ async def update_outing(outing_id: str, payload: OutingUpdate, current=Depends(g
     outing = await require_member(outing_id, current)
     if outing["created_by"] != current["id"]:
         raise HTTPException(status_code=403, detail="Only the outing's creator can edit it")
-    update = {k: v for k, v in payload.dict().items() if v is not None}
+    update = {k: v for k, v in payload.model_dump().items() if v is not None}
     for field in ("name", "destination", "description"):
         if field in update:
             update[field] = update[field].strip()

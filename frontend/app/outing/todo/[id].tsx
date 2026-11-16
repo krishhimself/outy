@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, Outing, Todo } from "@/src/api/client";
 import { useAuth } from "@/src/state/auth";
 import { colors, radii, spacing } from "@/src/theme";
+import { notify } from "@/src/utils/confirm";
 
 export default function TodoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,6 +38,8 @@ export default function TodoScreen() {
       const [o, list] = await Promise.all([api.getOuting(id), api.listTodos(id)]);
       setOuting(o);
       setTodos(list);
+    } catch {
+      // keep whatever is on screen
     } finally {
       setLoading(false);
     }
@@ -91,6 +94,8 @@ export default function TodoScreen() {
       setNewTitle("");
       setAssignTo(null);
       setAddOpen(false);
+    } catch (e: any) {
+      notify("Could not add to-do", e?.message ?? "Please try again.");
     } finally {
       setSubmitting(false);
     }

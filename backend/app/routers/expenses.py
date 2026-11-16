@@ -99,7 +99,7 @@ async def add_expense(outing_id: str, payload: ExpenseCreate, current=Depends(ge
         shares=shares,
         created_by=current["id"],
     )
-    await db.expenses.insert_one(expense.dict())
+    await db.expenses.insert_one(expense.model_dump())
     return expense
 
 

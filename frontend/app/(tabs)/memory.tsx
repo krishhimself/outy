@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { api, Outing } from "@/src/api/client";
 import { useAuth } from "@/src/state/auth";
 import { colors, radii, spacing } from "@/src/theme";
+import { parseDate } from "@/src/utils/dates";
 
 const SCREEN_W = Math.min(Dimensions.get("window").width, 430);
 
@@ -32,6 +33,8 @@ export default function MemoryTab() {
       const list = await api.listOutings("past");
       list.sort((a, b) => (a.end_date < b.end_date ? 1 : -1));
       setOutings(list);
+    } catch {
+      // keep whatever is on screen; the next refresh tries again
     } finally {
       setLoading(false);
     }
@@ -40,8 +43,8 @@ export default function MemoryTab() {
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
   const formatDate = (start: string, end: string) => {
-    const s = new Date(start);
-    const e = new Date(end);
+    const s = parseDate(start);
+    const e = parseDate(end);
     const opt: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
     return `${s.toLocaleDateString(undefined, opt)} – ${e.toLocaleDateString(undefined, opt)}`;
   };

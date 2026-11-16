@@ -20,12 +20,9 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/state/auth";
 import { colors, radii, spacing } from "@/src/theme";
+import { toDateString } from "@/src/utils/dates";
 
 const UNSPLASH_KEY = process.env.EXPO_PUBLIC_UNSPLASH_KEY;
-
-function toISO(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 function plusDays(d: number): Date {
   const dt = new Date();
@@ -84,7 +81,7 @@ export default function CreateTab() {
   const canSubmit =
     name.trim().length >= 2 &&
     destination.trim().length >= 2 &&
-    endDate >= startDate;
+    toDateString(endDate) >= toDateString(startDate);
 
   const submit = async () => {
     if (!profile || !canSubmit || loading) return;
@@ -96,8 +93,8 @@ export default function CreateTab() {
         destination: destination.trim(),
         description: description.trim(),
         cover_url: cover,
-        start_date: toISO(startDate),
-        end_date: toISO(endDate),
+        start_date: toDateString(startDate),
+        end_date: toDateString(endDate),
       });
       setName(""); setDestination(""); setDescription("");
       setCover(null); setUnsplashResults([]); setLastSearched("");

@@ -1,4 +1,6 @@
 // Outy API client — every request can attach a Bearer token via setToken().
+import { todayString } from "@/src/utils/dates";
+
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 let authToken: string | null = null;
@@ -163,7 +165,9 @@ export const api = {
     request<{ ok: boolean }>("/auth/reset-password", { method: "POST", body: JSON.stringify({ email, otp, new_password }) }),
 
   // Outings
-  listOutings: (scope: "upcoming" | "past" | "all" = "all") => request<Outing[]>(`/outings?scope=${scope}`),
+  // `today` is the phone's own date, so "upcoming" and "past" flip at local midnight.
+  listOutings: (scope: "upcoming" | "past" | "all" = "all") =>
+    request<Outing[]>(`/outings?scope=${scope}&today=${todayString()}`),
   createOuting: (body: { name: string; destination: string; description?: string; cover_url?: string | null; start_date: string; end_date: string }) =>
     request<Outing>("/outings", { method: "POST", body: JSON.stringify(body) }),
   getOuting: (id: string) => request<Outing>(`/outings/${id}`),

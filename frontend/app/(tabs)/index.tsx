@@ -20,10 +20,11 @@ import OutingCard, { daysUntil } from "@/src/components/OutingCard";
 import { HomeSkeleton } from "@/src/components/SkeletonLoader";
 import { useAuth } from "@/src/state/auth";
 import { colors, spacing, radii } from "@/src/theme";
+import { parseDate } from "@/src/utils/dates";
 
 function useCountdown(targetDate: string) {
   const calc = () => {
-    const diff = new Date(targetDate).getTime() - Date.now();
+    const diff = parseDate(targetDate).getTime() - Date.now();
     if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -73,7 +74,7 @@ export default function HomeTab() {
         allOutings.slice(0, 5).map(async (outing) => {
           try {
             const msgs = await api.listMessages(outing.id, undefined, 3); // newest three
-            msgs.forEach((m) => {
+            msgs.slice(-3).forEach((m) => {
               activityItems.push({
                 id: m.id,
                 text: m.text,
@@ -188,7 +189,7 @@ export default function HomeTab() {
           <Text style={styles.heroDestination}>{hero.destination}</Text>
           <Text style={styles.heroDot}>·</Text>
           <Text style={styles.heroDestination}>
-            {new Date(hero.start_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            {parseDate(hero.start_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
           </Text>
         </View>
         <View style={styles.heroAvatars}>
@@ -261,7 +262,7 @@ export default function HomeTab() {
             <View style={styles.memoryInfo}>
               <Text style={styles.memoryName} numberOfLines={1}>{outing.name}</Text>
               <Text style={styles.memoryDate}>
-                {new Date(outing.start_date).toLocaleDateString(undefined, { month: "short", year: "2-digit" })}
+                {parseDate(outing.start_date).toLocaleDateString(undefined, { month: "short", year: "2-digit" })}
               </Text>
             </View>
           </TouchableOpacity>

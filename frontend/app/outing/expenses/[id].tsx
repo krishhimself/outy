@@ -75,6 +75,8 @@ export default function ExpensesScreen() {
       setBalances(s.balances);
       setTransactions(s.transactions);
       setTotalSpent(e.reduce((acc, x) => acc + x.amount, 0));
+    } catch {
+      // keep whatever is on screen; the next refresh tries again
     } finally {
       setLoading(false);
     }

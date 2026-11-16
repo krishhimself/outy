@@ -52,6 +52,8 @@ export default function ExpensesTab() {
     try {
       const s = await api.expensesSummary();
       setSummary(s as Summary);
+    } catch {
+      // keep whatever is on screen; the next refresh tries again
     } finally {
       setLoading(false);
     }

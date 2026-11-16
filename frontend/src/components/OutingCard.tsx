@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { Outing } from "@/src/api/client";
 import { colors, radii, spacing } from "@/src/theme";
+import { parseDate } from "@/src/utils/dates";
 
 const PASTELS = [
   { bg: "#D1FAE5", text: "#065F46" },
@@ -16,8 +17,8 @@ const PASTELS = [
 
 function formatDateRange(start: string, end: string): string {
   const opt: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const s = new Date(start);
-  const e = new Date(end);
+  const s = parseDate(start);
+  const e = parseDate(end);
   if (isNaN(s.getTime()) || isNaN(e.getTime())) return `${start} – ${end}`;
   const sStr = s.toLocaleDateString(undefined, opt);
   const eStr = e.toLocaleDateString(undefined, opt);
@@ -25,7 +26,7 @@ function formatDateRange(start: string, end: string): string {
 }
 
 export function daysUntil(start: string): number {
-  const s = new Date(start);
+  const s = parseDate(start);
   if (isNaN(s.getTime())) return 0;
   const today = new Date();
   today.setHours(0, 0, 0, 0);

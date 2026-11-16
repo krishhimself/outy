@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, Outing } from "@/src/api/client";
 import { useAuth } from "@/src/state/auth";
 import { colors, radii, spacing } from "@/src/theme";
+import { notify } from "@/src/utils/confirm";
 
 export default function ProfileTab() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function ProfileTab() {
     if (!perm.granted) return;
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.6,
+      quality: 0.3, // profile photos are shown small; keep the upload light
       base64: true,
       allowsEditing: true,
       aspect: [1, 1],
@@ -70,6 +71,8 @@ export default function ProfileTab() {
     try {
       await updateProfile({ name: editName.trim(), avatar_url: editAvatar });
       setEditing(false);
+    } catch (e: any) {
+      notify("Could not save", e?.message ?? "Please try again.");
     } finally {
       setSaving(false);
     }

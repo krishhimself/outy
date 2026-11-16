@@ -72,7 +72,7 @@ async def add_todo(outing_id: str, payload: TodoCreate, current=Depends(get_curr
         assigned_to=payload.assigned_to or None,
         assigned_to_name=assignee_name,
     )
-    await db.todos.insert_one(todo.dict())
+    await db.todos.insert_one(todo.model_dump())
     assignee = f" for {assignee_name}" if assignee_name else ""
     await post_system_message(outing_id, f"{current['name']} added \u201c{todo.title}\u201d to the to-do list{assignee}")
     return todo

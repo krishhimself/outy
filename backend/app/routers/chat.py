@@ -47,7 +47,7 @@ async def post_message(outing_id: str, payload: MessageCreate, current=Depends(g
         type="text",
         text=text,
     )
-    await db.messages.insert_one(msg.dict())
+    await db.messages.insert_one(msg.model_dump())
     return msg
 
 

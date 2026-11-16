@@ -58,7 +58,7 @@ export default function OutingDetail() {
       const [o, e, g, t] = await Promise.all([
         api.getOuting(id),
         api.listExpenses(id),
-        api.galleryCount(id),
+        api.galleryCount(id).catch(() => ({ count: 0 })), // a missing count must not hide the outing
         api.listTodos(id),
       ]);
       setOuting(o);
@@ -76,7 +76,16 @@ export default function OutingDetail() {
 
   const shareCode = async () => {
     if (!outing) return;
-    try { await Share.share({ message: `Join "${outing.name}" on Outy! Invite code: ${outing.invite_code}` }); } catch {}
+    const message = `Join "${outing.name}" on Outy! Invite code: ${outing.invite_code}`;
+    try {
+      if (Platform.OS === "web") {
+        // browsers on a laptop have no share sheet; copy the invite instead
+        await navigator.clipboard.writeText(message);
+        notify("Invite copied", "Paste it into any chat to share.");
+      } else {
+        await Share.share({ message });
+      }
+    } catch {}
   };
 
   const submitInvite = async () => {

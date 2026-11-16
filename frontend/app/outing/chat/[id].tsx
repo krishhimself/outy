@@ -53,6 +53,8 @@ export default function ChatScreen() {
       const list = await api.listMessages(id);
       setMessages(list);
       if (list.length) lastTsRef.current = list[list.length - 1].created_at;
+    } catch {
+      // keep whatever is on screen; the next refresh tries again
     } finally {
       setLoading(false);
     }
